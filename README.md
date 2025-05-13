@@ -1,5 +1,3 @@
-# Vector_add
-
- A CUDA program to learn CUDA
+CUDA programs to learn CUDA 
 
  
