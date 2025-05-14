@@ -31,11 +31,9 @@ __global__ void reduce_v1(float* d_in, float* d_out) {
     for (int index = 1; index < blockDim.x; index *= 2) {
 
         // v1的旧写法: 因为消除了v0的除余操作，速度相比v0有提升: 
-        // for(unsigned int s = 1; s < blockDim.x; s *= 2) {
-        // int index = 2 * s * tid;
-        // if (index < blockDim.x) {
-        // smem[index] += smem[index + s];
-        // }
+        /*if (tid % (2 * index) == 0) {
+            smem[tid] += smem[tid + index];
+        }*/
         
         // 算法思路和v0一致，仅仅是用位运算替代了v0 if语句中的除余操作
         if ((tid & (2 * index - 1)) == 0) {
