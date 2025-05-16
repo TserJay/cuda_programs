@@ -9,6 +9,24 @@
 // V0:naive版本
 // latency: 3.85ms
 // blcokSize作为模板参数的效果主要用于静态shared memory 的申请需要传入编译器常量指定大小(L10)
+
+
+
+// V0:naive版本
+// latency: 3.85ms
+// blcokSize作为模板参数的效果主要用于静态shared memory 的申请需要传入编译器常量指定大小(L10)
+
+
+
+//allcated 100000 blocks, data counts are 25600000
+//the ans is right
+//reduce_v0 latency = 17.547104 ms
+
+
+//allcated 100000 blocks, data counts are 25600000
+//the ans is right
+//reduce_v0 latency = 11.634880 ms
+
 template<int blockSize>
 __global__ void reduce_v0(float *d_in, float *d_out){
     __shared__ float smem[blockSize];
@@ -28,9 +46,17 @@ __global__ void reduce_v0(float *d_in, float *d_out){
         // 现在的v0和v1性能大体相似
         // v0慢的原因在于下一行使用了除余%，除余%是个非常耗时的指令，我会在下个版本对这里进一步修正
         // 可尝试把下一行替换为`if ((tid & (2 * index - 1)) == 0) {`, 性能大概可以提升30%～50%
+       /* if (tid % (2 * index) == 0) {
+            smem[tid] += smem[tid + index];
+        }*/
+
         if (tid % (2 * index) == 0) {
             smem[tid] += smem[tid + index];
         }
+
+        /*if ((tid & (2 * index - 1)) == 0) {
+            smem[tid] += smem[tid + index];
+        }*/
         __syncthreads();
     }
 
@@ -79,7 +105,7 @@ int main()
 
     float groudtruth = N * 1.0f;
 
-    cudaMemcpy(d_a, a, N * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(d_a, a, N * sizeof(float), cudaMemcpyHostToDevice);
     
     dim3 Grid(GridSize);
     dim3 Block(blockSize);
@@ -113,6 +139,5 @@ int main()
     cudaFree(d_out);
     free(a);
     free(out);
-
 
 }
