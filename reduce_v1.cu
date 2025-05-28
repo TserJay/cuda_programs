@@ -109,7 +109,7 @@ int main() {
         //printf("\n");
         printf("groudtruth is: %f \n", groudtruth);
     }
-    printf("reduce_v0 latency = %f ms\n", milliseconds);
+    printf("reduce_v1 latency = %f ms\n", milliseconds);
 
     cudaFree(d_a);
     cudaFree(d_out);
