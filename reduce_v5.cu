@@ -58,7 +58,7 @@ __device__ void BlockShareMemReduce(float* smem) {
 		__syncthreads();
 	}
 	
-	if (blockSize < 32) {
+	if (threadIdx.x < 32) {
 		volatile float* vshm = smem;
 		if (blockDim.x >= 64) {
 			vshm[threadIdx.x] += vshm[threadIdx.x + 32];
