@@ -13,6 +13,7 @@ __global__ void histgram(int* hist_data, int* bin_data) {
 	int gitd = blockIdx.x * blockDim.x + threadIdx.x;
 
 	// 原子加法指令，计算统计结果
+	// 原子加法会强制并行的CUDA的线程串行执行加法
 	atomicAdd(&bin_data[hist_data[gitd]], 1);
 
 }
