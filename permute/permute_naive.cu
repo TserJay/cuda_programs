@@ -4,7 +4,6 @@
 
 using namespace std;
 
-
 // cuda kernel
 // 1. permute [0,1,2]->[0,2,1]
 __global__ void permute_1(const float* input, float* output, int A, int B, int C) {
@@ -44,7 +43,7 @@ __global__ void permute_3(const float* input, float* output, int A , int B, int 
 }
 
 
-
+// cpu kernel
 void permute_1_cpu(const float* input, float* output, int A, int B, int C) {
     for (int a = 0; a < A; a++) {
         for (int b = 0; b < B; b++) {
@@ -187,14 +186,14 @@ int main() {
         printf("false\n");
     }
 
-
-
     cudaFreeHost(h_input);
     cudaFreeHost(h_output);
     cudaFreeHost(h_output_cpu);
     cudaFree(d_input);
     cudaFree(d_output_1);
     cudaFree(d_output_2);
+    cudaFree(d_output_3);
+
 
     return 0;
 }
