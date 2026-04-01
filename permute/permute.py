@@ -72,41 +72,54 @@ def verify_result(torch_output, numpy_input, permute_order):
     return is_close
 
 
+# parameter
+cuda_kernel = lib.permute_11
+tag = "测试3D张量 permute [0,1,2]->[0,2,1]"
+permute_order = (0, 2, 1)  
+
 
 # 测试3D张量的permute
-print("-" * 60)
-print("测试3D张量 permute [0,1,2] -> [0,2,1]")
+print("-" * 15, {tag} ,"-" * 15)
 
 # 创建3D测试张量
 values_3d = torch.randn((3, 4, 5)).cuda().float()
 print(f"输入形状: {values_3d.shape}")
 
 # 运行CUDA permute
-cuda_output, _ = run_benchmark(lib.permute_1, values_3d, "permute: [0,1,2] -> [0,2,1]")
+cuda_output, _ = run_benchmark(cuda_kernel, values_3d, tag)
 
 # 使用numpy验证
 numpy_input = values_3d.cpu().numpy()
-is_correct = verify_result(cuda_output, numpy_input, (0, 2, 1))
+is_correct = verify_result(cuda_output, numpy_input, permute_order)
 
 print(f"\n验证结果: {'True' if is_correct else 'False'}")
 
 
-print("\n" + "-" * 60)
-print("测试不同形状的3D张量")
+print("\n" + "-" * 15 ,"测试不同形状的3D张量", "-" * 15)
 
 
-test_shapes = [(2, 3, 4), (4, 5, 6), (8, 16, 32)]
+
+# test_shapes = [(2, 3, 4), (2048, 2048, 2048), (4096, 4096, 4096)]
+
+# Bs = [1024, 2048, 4096]
+# Ss = [1024, 2048, 4096]
+# Ks = [1024, 2048, 4096]
+
+Bs = [512, 1024]
+Ss = [512, 1024]
+Ks = [512, 1024]
+
+test_shapes = [(B, S, K) for B in Bs for S in Ss for K in Ks]
 
 for shape in test_shapes:
+    torch.cuda.empty_cache()
     print(f"\n测试形状: {shape}")
     values = torch.randn(shape).cuda().float()
-    cuda_output, _ = run_benchmark(lib.permute_1, values, f"shape_{shape}")
+    cuda_output, _ = run_benchmark(cuda_kernel, values, f"shape_{shape}")
     
     # numpy验证
     numpy_input = values.cpu().numpy()
-    is_correct = verify_result(cuda_output, numpy_input, (0, 2, 1))
-    print(f"验证: {'True' if is_correct else 'False'}")
+    is_correct = verify_result(cuda_output, numpy_input, permute_order)
+    print(f"验证结果: {'True' if is_correct else 'False'}")
 
-print("\n" + "-" * 60)
-print("测试完成")
-
+print("\n" + "-" * 15 ,"测试完成", "-" * 15)

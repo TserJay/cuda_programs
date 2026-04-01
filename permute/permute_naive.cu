@@ -46,6 +46,39 @@ __global__ void permute_3(const float* input, float* output, int A , int B, int 
 }
 
 
+
+// 11. permute [0,1,2]->[0,2,1]
+__global__ void permute_11(const float* input, float* output, int A ,int B, int C){
+    int a = blockIdx.z;
+    // int b = blockIdx.x * blockDim.x + threadIdx.x;
+    // int c = blockIdx.y * blockDim.y + threadIdx.y;
+    // 一个线程处理多个数据
+
+    int per_thread = 64;
+    int total = B * C;
+
+    int total_threads = gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y;
+    
+    // 全局id计算
+    int idx = blockIdx.z * (gridDim.x * gridDim.y * blockDim.x * blockDim.y) +
+                blockIdx.y * (gridDim.x * blockDim.x * blockDim.y) +
+                blockIdx.x * (blockDim.x * blockDim.y) +
+                threadIdx.y * blockDim.x + threadIdx.x;
+
+    int start = idx * per_thread;
+    int end = min(start + per_thread, total);
+
+    for(int i = start; i < end; ++i){
+        int b = i / C;
+        int c = i % C;
+
+        int in_idx = a * B * C + b * C + c;
+        int out_idx = a * C * B + c * B + b;
+        output[out_idx] = input[in_idx];
+    }
+}
+
+
 // // cpu kernel
 // void permute_1_cpu(const float* input, float* output, int A, int B, int C) {
 //     for (int a = 0; a < A; a++) {
@@ -113,7 +146,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         float* output_ptr = output.data_ptr<float>();
         
         // 配置CUDA kernel
-        dim3 BlockDim(16, 16);
+        dim3 BlockDim(32, 32);
         dim3 GridDim(
             (C + BlockDim.x - 1) / BlockDim.x,
             (B + BlockDim.y - 1) / BlockDim.y,
@@ -134,11 +167,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         
         // 创建输出张量，形状为 [B, A, C] (permute [1,0,2])
         auto output = torch::empty({B, A, C}, input.options());
-        
         const float* input_ptr = input.data_ptr<float>();
         float* output_ptr = output.data_ptr<float>();
         
-        dim3 BlockDim(16, 16);
+        dim3 BlockDim(32, 32);
         dim3 GridDim(
             (C + BlockDim.x - 1) / BlockDim.x,
             (A + BlockDim.y - 1) / BlockDim.y,
@@ -162,7 +194,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         const float* input_ptr = input.data_ptr<float>();
         float* output_ptr = output.data_ptr<float>();
         
-        dim3 BlockDim(16, 16);
+        dim3 BlockDim(32, 32);
         dim3 GridDim(
             (B + BlockDim.x - 1) / BlockDim.x,
             (A + BlockDim.y - 1) / BlockDim.y,
@@ -173,7 +205,34 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         
         return output;
     }, "Permute [0,1,2] -> [2,0,1]");
+
+    m.def("permute_11", [](torch::Tensor input){
+        auto sizes = input.sizes();
+        int A = sizes[0];
+        int B = sizes[1];
+        int C = sizes[2];
+        
+        // 创建输出张量，形状为 [A, C, B] (permute [0,2,1])
+        auto output = torch::empty({A, C, B}, input.options());
+        
+        const float* input_ptr = input.data_ptr<float>();
+        float* output_ptr = output.data_ptr<float>();
+        
+        dim3 BlockDim(32, 32);
+        // 计算需要的线程数：每个线程处理64个数据
+        int per_thread = 64;
+        int total_threads = (B * C + per_thread - 1) / per_thread;
+        dim3 GridDim(
+            (total_threads + BlockDim.x * BlockDim.y - 1) / (BlockDim.x * BlockDim.y),
+            1,
+            A
+        );
+        permute_11<<<GridDim, BlockDim>>>(input_ptr, output_ptr, A, B, C);
+        return output;
+    }, "Permute [0,1,2] -> [0,2,1]");
 }
+
+
 
 
 
@@ -232,7 +291,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 //     );
 
 //     // gpu
-//     permute_1<<<GridDim1,BlockDim>>>(d_input, d_output_1, A, B, C);
+    // permute_1<<<GridDim1,BlockDim>>>(d_input, d_output_1, A, B, C);
 //     permute_2<<<GridDim2,BlockDim>>>(d_input, d_output_2, A, B, C);
 //     permute_3<<<GridDim3,BlockDim>>>(d_input, d_output_3, A, B, C);
 //     cudaDeviceSynchronize();
