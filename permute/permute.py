@@ -1,9 +1,11 @@
 
+import os
 import torch
 import numpy as np
 import time
 from torch.utils.cpp_extension import load
 
+os.environ['TORCH_CUDA_ARCH_LIST'] = '8.0'
 
 # loda the cuda kernels as a python module
 lib = load(
@@ -14,7 +16,7 @@ lib = load(
 )
 
 def run_benchmark(
-    perf_func:callable,
+    perf_func: callable,
     values: torch.Tensor,
     tag: str,
     warmup: int = 10,
@@ -23,12 +25,11 @@ def run_benchmark(
 ):
     for i in range(warmup):
         _ = perf_func(values)
-    torch.cuda.synchronize()
+    # torch.cuda.synchronize()
 
     start = time.time()
     for i in range(iters):
         out = perf_func(values)
-    torch.cuda.synchronize()
     end = time.time()
     total_time = (end - start) * 1000  # 转换为毫秒
     mean_time = total_time / iters 
@@ -73,7 +74,7 @@ def verify_result(torch_output, numpy_input, permute_order):
 
 
 # parameter
-cuda_kernel = lib.permute_11
+cuda_kernel = lib.permute_12
 tag = "测试3D张量 permute [0,1,2]->[0,2,1]"
 permute_order = (0, 2, 1)  
 
