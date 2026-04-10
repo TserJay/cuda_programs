@@ -1,9 +1,9 @@
-
-
 #include <torch/extension.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#define TILE_SIZE 16
 
 using namespace std;
 
@@ -33,7 +33,7 @@ __global__ void permute_2(const float* input, float* output, int A, int B, int C
     output[out_idx] = input[in_idx];
 }
 
-// 3. permute [0,1,2]->[2,0,1] [C,A,B]
+// 3. permute_3 [0,1,2]->[2,0,1] [C,A,B]
 __global__ void permute_3(const float* input, float* output, int A , int B, int C){
     int c = blockIdx.z;
     int a = blockIdx.y * blockDim.y + threadIdx.y;
@@ -75,7 +75,8 @@ __global__ void permute_11(const float* input, float* output, int A ,int B, int 
     }
 }
 
-// 12. permute [0,1,2]->[0,2,1]
+// 12. permute [0,1,2]->[0,2,1] 
+// 使用了 shared_mem 
 __global__ void permute_12(const float* input, float* output, int A, int B, int C){
     int a = blockIdx.z;
     if (a >= A) return;
@@ -116,6 +117,47 @@ __global__ void permute_12(const float* input, float* output, int A, int B, int 
 }
 
 
+// permute_3.cu 的优化
+// shared mem
+__global__ void permute_31(
+    const float* __restrict__ input, 
+    float* __restrict__ output,
+    int A, int B, int C
+    )
+{
+    __shared__ float tile[TILE_SIZE][TILE_SIZE + 1];  // +1 避免 bank conflict
+    
+    int a = blockIdx.z;           // A 维度
+    if (a >= A) return;
+    
+    int tileB = blockIdx.y * TILE_SIZE;  // B 维度 tile
+    int tileC = blockIdx.x * TILE_SIZE;  // C 维度 tile
+    
+    int localB = threadIdx.y;  // tile 内 B 坐标
+    int localC = threadIdx.x;  // tile 内 C 坐标
+    
+    int globalB = tileB + localB;
+    int globalC = tileC + localC;
+    
+    // 读取到 shared memory
+    // 读取 input[a, globalB, globalC]
+    if (globalB < B && globalC < C) {
+        int inIdx = a * B * C + globalB * C + globalC;
+        tile[localB][localC] = input[inIdx];
+    }
+    
+    __syncthreads();
+    
+    // 转置写出到 output
+    // output[globalC, a, globalB]
+    if (globalB < B && globalC < C) {
+        int outIdx = globalC * A * B + a * B + globalB;
+        output[outIdx] = tile[localB][localC];
+    }
+}
+
+
+
 
 // // cpu kernel
 // void permute_1_cpu(const float* input, float* output, int A, int B, int C) {
@@ -154,7 +196,6 @@ __global__ void permute_12(const float* input, float* output, int A, int B, int 
 //         }
 //     }
 // }
-
 
 // bool verify_result(const float* gpu_output, const float* cpu_output, int size) {
 //     const float epsilon = 1e-5f;
@@ -267,7 +308,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         return output;
     }, "Permute [0,1,2] -> [0,2,1]");
 
-
 m.def("permute_12", [](torch::Tensor input){
     auto sizes = input.sizes();
     int A = sizes[0];
@@ -292,7 +332,34 @@ m.def("permute_12", [](torch::Tensor input){
     permute_12<<<GridDim, BlockDim>>>(input_ptr, output_ptr, A, B, C);
     return output;
 }, "Permute [0,1,2] -> [0,2,1] with shared memory");
+
+
+// permute_31 [0,1,2]->[2,0,1] [C,A,B]
+m.def("permute_31",[](torch::Tensor input){
+    auto size = input.sizes();
+    int A = size[0];
+    int B = size[1];
+    int C = size[2];
+
+    auto output = torch::empty({C, A, B}, input.options());
+    const float* input_ptr = input.data_ptr<float>();
+    float* output_ptr = output.data_ptr<float>();
+
+    dim3 BlockDim(TILE_SIZE, TILE_SIZE);
+    dim3 GridDim(
+        (C + TILE_SIZE - 1) / TILE_SIZE,
+        (B + TILE_SIZE - 1) / TILE_SIZE,
+        A
+    );
+    permute_31<<<GridDim, BlockDim>>>(input_ptr, output_ptr, A, B, C);
+    return output;
+},"permute_31 [0,1,2]->[2,0,1] with shared memory");
+
+
+
+
 }
+
 
 
 // int main() {
