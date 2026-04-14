@@ -3,11 +3,11 @@ import torch
 from torch.utils.cpp_extension import load
 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 lib = load(
     name="reduce_cuda",
-    sources=[os.path.join(BASE_DIR, "reduce.cu")],
+    sources=["reduce.cu"],
     extra_cuda_cflags=["-O3"],
     extra_cflags=["-std=c++17"],
 )
