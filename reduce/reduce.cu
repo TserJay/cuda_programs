@@ -59,10 +59,10 @@ __global__ void block_all_reduce_sum_11(const float* input, float* output, int n
     sdata[tid] = input[gtid];  
     __syncthreads();
 
-    for(unsigned i = 1; i < blockDim.x; i *=2){
+    for(unsigned i = 1; i < blockDim.x; i*=2){
         int index = 2*i*tid;
         if(index < blockDim.x)
-            sdata[tid] += sdata[tid + index];
+            sdata[index] += sdata[index + i];
         __syncthreads();  // if外部，for循环体内
     }
 
@@ -197,7 +197,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         return output.sum();
     }, "block_all_reduce_sum_1");
 
-     m.def("block_all_reduce_sum_11", [](torch::Tensor input) {
+    m.def("block_all_reduce_sum_11", [](torch::Tensor input) {
         TORCH_CHECK(input.is_cuda(), "input must be a CUDA tensor");
         TORCH_CHECK(input.scalar_type() == torch::kFloat32, "input must be float32");
         TORCH_CHECK(input.dim() == 1, "this demo only supports 1D tensors");
