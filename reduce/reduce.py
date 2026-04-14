@@ -7,7 +7,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 lib = load(
     name="reduce_cuda",
-    sources=[os.path.join(BASE_DIR, "reduce_baseline.cu")],
+    sources=[os.path.join(BASE_DIR, "reduce.cu")],
     extra_cuda_cflags=["-O3"],
     extra_cflags=["-std=c++17"],
 )
@@ -51,6 +51,7 @@ def main():
 
     kernels = [
         ("reduce_1 naive", lib.block_all_reduce_sum_1),
+        ("reduce_11 warp divergence", lib.block_all_reduce_sum_11),
         ("reduce_2 grid_stride", lib.block_all_reduce_sum_2),
         ("reduce_3 warp_atomic", lib.block_all_reduce_sum_3),
     ]

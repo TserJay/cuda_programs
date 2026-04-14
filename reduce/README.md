@@ -24,3 +24,18 @@ reduce_3 warp_atomic     correct=True
 
 
 
+
+
+
+
+# A100
+input numel=25600000 dtype=torch.float32 device=cuda:0
+reduce_1 naive           out=25600000.00000000 time=0.50455246 ms
+reduce_1 naive           correct=True
+reduce_2 grid_stride     out=25600000.00000000 time=0.08409395 ms
+reduce_2 grid_stride     correct=True
+reduce_3 warp_atomic     out=25600000.00000000 time=0.07745024 ms
+reduce_3 warp_atomic     correct=True
+
+
+
