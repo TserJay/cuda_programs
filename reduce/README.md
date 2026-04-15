@@ -39,3 +39,25 @@ reduce_3 warp_atomic     correct=True
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+input numel=25600000 dtype=torch.float32 device=cuda:0
+reduce_1 naive           out=25600000.00000000 time=0.73295050 ms
+reduce_1 naive           correct=True
+reduce_11 warp divergence out=25600000.00000000 time=0.42257202 ms
+reduce_11 warp divergence correct=True
+reduce_2 grid_stride     out=25600000.00000000 time=0.14433997 ms
+reduce_2 grid_stride     correct=True
+reduce_3 warp_atomic     out=25600000.00000000 time=0.15107788 ms
+reduce_3 warp_atomic     correct=True
