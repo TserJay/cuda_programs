@@ -1,15 +1,20 @@
 import os
+import shutil
 import torch
-from torch.utils.cpp_extension import load
+from torch.utils.cpp_extension import load,load_inline
 
 
-
+# cache_dir = os.path.expanduser("~/.cache/torch_extensions/py312_cu132/reduce_cuda")
+# if os.path.exists(cache_dir):
+#     shutil.rmtree(cache_dir)
 
 lib = load(
     name="reduce_cuda",
     sources=["reduce.cu"],
+    # cpp_sources=[open("reduce.cu").read()],
     extra_cuda_cflags=["-O3"],
     extra_cflags=["-std=c++17"],
+    verbose=True
 )
 
 
@@ -37,7 +42,7 @@ def run_benchmark(
     torch.cuda.synchronize()
 
     mean_time = start.elapsed_time(end) / iters
-    print(f"{tag:<24} out={out.item():<15.8f} time={mean_time:.8f} ms")
+    print(f"{tag:<30} out={out.item():<15.8f} time={mean_time:.8f} ms")
     return out, mean_time
 
 
@@ -52,8 +57,9 @@ def main():
     kernels = [
         ("reduce_1 naive", lib.block_all_reduce_sum_1),
         ("reduce_11 warp divergence", lib.block_all_reduce_sum_11),
-        ("reduce_2 grid_stride", lib.block_all_reduce_sum_2),
-        ("reduce_3 warp_atomic", lib.block_all_reduce_sum_3),
+        ("reduce_2 ", lib.block_all_reduce_sum_2),
+        ("reduce_101 grid_stride", lib.block_all_reduce_sum_101),
+        ("reduce_102 warp_atomic", lib.block_all_reduce_sum_102),
     ]
 
     print(f"input numel={values.numel()} dtype={values.dtype} device={values.device}")

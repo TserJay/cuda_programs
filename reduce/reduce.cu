@@ -1,11 +1,13 @@
 ﻿#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
+// #include "device_launch_parameters.h"
 #include <cuda.h>
 #include <stdio.h>
 #include <torch/extension.h>
 
 #define BLOCK_SIZE 256
 #define WARP_SIZE 32
+
+
 
 __inline__ __device__ float warp_reduce_sum(float sum) {
     // 这个函数只做一件事：
@@ -37,6 +39,7 @@ __global__ void block_all_reduce_sum_1(const float* input, float* output, int n)
     // 最后 tile[0] 就是这个 block 的和。
     for (int index = 1; index < blockDim.x; index *= 2) {
         if (tid % (2 * index) == 0) {
+        // if (tid & (2 * index - 1) == 0) {
             tile[tid] += tile[tid + index];
         }
         __syncthreads();
@@ -59,7 +62,7 @@ __global__ void block_all_reduce_sum_11(const float* input, float* output, int n
     sdata[tid] = input[gtid];  
     __syncthreads();
 
-    for(unsigned i = 1; i < blockDim.x; i*=2){
+    for(unsigned int i = 1; i < blockDim.x; i = i << 1){
         int index = 2*i*tid;
         if(index < blockDim.x)
             sdata[index] += sdata[index + i];
@@ -71,8 +74,28 @@ __global__ void block_all_reduce_sum_11(const float* input, float* output, int n
 }
 
 
+// 消除 bank conflict 
+__global__ void block_all_reduce_sum_2(const float* input, float* output, int n){
+    __shared__ float sdata[BLOCK_SIZE];
+    int tid = threadIdx.x;
+    int gtid = blockIdx.x * blockDim.x + tid;
 
-__global__ void block_all_reduce_sum_2(const float* input, float* output, int n) {
+    sdata[tid] = input[gtid];
+    __syncthreads();
+
+    for (unsigned int i = blockDim.x / 2; i > 0; i = i >> 1){
+        if (tid < i){
+            sdata[tid] += sdata[tid + i];
+        }
+        __syncthreads();
+    }
+    if(tid == 0)
+        output[blockIdx.x] = sdata[tid];
+}
+
+
+
+__global__ void block_all_reduce_sum_101(const float* input, float* output, int n) {
     __shared__ float tile[BLOCK_SIZE];
 
     int tid = threadIdx.x;
@@ -112,7 +135,7 @@ __global__ void block_all_reduce_sum_2(const float* input, float* output, int n)
 
 
 
-__global__ void block_all_reduce_sum_3(const float* input, float* output, int n) {
+__global__ void block_all_reduce_sum_102(const float* input, float* output, int n) {
     __shared__ float warp_sum[BLOCK_SIZE / WARP_SIZE];
 
     int tid = threadIdx.x;
@@ -225,7 +248,37 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     }, "block_all_reduce_sum_11");
 
 
+    
     m.def("block_all_reduce_sum_2", [](torch::Tensor input) {
+        TORCH_CHECK(input.is_cuda(), "input must be a CUDA tensor");
+        TORCH_CHECK(input.scalar_type() == torch::kFloat32, "input must be float32");
+        TORCH_CHECK(input.dim() == 1, "this demo only supports 1D tensors");
+
+        auto x = input.contiguous();
+        int n = x.size(0);
+
+        if (n == 0) {
+            auto output = torch::zeros(1, x.options());
+            return output[0];
+        }
+
+        // 这是最直观的写法：每 256 个元素开一个 block。
+        int gridSize = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+        auto output = torch::zeros(gridSize, x.options());
+
+        const float* input_ptr = x.data_ptr<float>();
+        float* output_ptr = output.data_ptr<float>();
+
+        block_all_reduce_sum_2<<<gridSize, BLOCK_SIZE>>>(input_ptr, output_ptr, n);
+
+        // 再把每个 block 的 partial sum 求一次和，得到最终结果。
+        return output.sum();
+    }, "block_all_reduce_sum_2");
+
+
+
+    m.def("block_all_reduce_sum_101", [](torch::Tensor input) {
         TORCH_CHECK(input.is_cuda(), "input must be a CUDA tensor");
         TORCH_CHECK(input.scalar_type() == torch::kFloat32, "input must be float32");
         TORCH_CHECK(input.dim() == 1, "this demo only supports 1D tensors");
@@ -250,13 +303,13 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         const float* input_ptr = x.data_ptr<float>();
         float* output_ptr = output.data_ptr<float>();
 
-        block_all_reduce_sum_2<<<gridSize, BLOCK_SIZE>>>(input_ptr, output_ptr, n);
+        block_all_reduce_sum_101<<<gridSize, BLOCK_SIZE>>>(input_ptr, output_ptr, n);
 
         // _2 也是先写 partial sums，再在 PyTorch 侧做一次 sum。
         return output.sum();
-    }, "block_all_reduce_sum_2");
+    }, "block_all_reduce_sum_101");
 
-    m.def("block_all_reduce_sum_3", [](torch::Tensor input) {
+    m.def("block_all_reduce_sum_102", [](torch::Tensor input) {
         TORCH_CHECK(input.is_cuda(), "input must be a CUDA tensor");
         TORCH_CHECK(input.scalar_type() == torch::kFloat32, "input must be float32");
         TORCH_CHECK(input.dim() == 1, "this demo only supports 1D tensors");
@@ -280,9 +333,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         const float* input_ptr = x.data_ptr<float>();
         float* output_ptr = output.data_ptr<float>();
 
-        block_all_reduce_sum_3<<<gridSize, BLOCK_SIZE>>>(input_ptr, output_ptr, n);
+        block_all_reduce_sum_102<<<gridSize, BLOCK_SIZE>>>(input_ptr, output_ptr, n);
 
         // _3 kernel 自己就会把所有 block 的结果加到 output[0] 里。
         return output[0];
-    }, "block_all_reduce_sum_3");
+    }, "block_all_reduce_sum_102");
 }

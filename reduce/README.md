@@ -29,35 +29,39 @@ reduce_3 warp_atomic     correct=True
 
 
 # A100
-input numel=25600000 dtype=torch.float32 device=cuda:0
-reduce_1 naive           out=25600000.00000000 time=0.50455246 ms
-reduce_1 naive           correct=True
-reduce_2 grid_stride     out=25600000.00000000 time=0.08409395 ms
-reduce_2 grid_stride     correct=True
-reduce_3 warp_atomic     out=25600000.00000000 time=0.07745024 ms
-reduce_3 warp_atomic     correct=True
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+显卡 0 负载
 
 input numel=25600000 dtype=torch.float32 device=cuda:0
-reduce_1 naive           out=25600000.00000000 time=0.73295050 ms
-reduce_1 naive           correct=True
-reduce_11 warp divergence out=25600000.00000000 time=0.42257202 ms
+reduce_1 naive           out=100000.00000000 time=0.18287514 ms  ---位运算：if (tid & (2 * index - 1) == 0)
+reduce_1 naive           correct=False
+reduce_11 warp divergence out=25600000.00000000 time=0.28222055 ms
 reduce_11 warp divergence correct=True
-reduce_2 grid_stride     out=25600000.00000000 time=0.14433997 ms
+reduce_2 grid_stride     out=25600000.00000000 time=0.08474829 ms
 reduce_2 grid_stride     correct=True
-reduce_3 warp_atomic     out=25600000.00000000 time=0.15107788 ms
+reduce_3 warp_atomic     out=25600000.00000000 time=0.07777997 ms
 reduce_3 warp_atomic     correct=True
+
+
+input numel=25600000 dtype=torch.float32 device=cuda:0
+reduce_1 naive           out=25600000.00000000 time=0.51381763 ms ---模（除）：if (tid % (2 * index) == 0) 
+reduce_1 naive           correct=True
+reduce_11 warp divergence out=25600000.00000000 time=0.28273459 ms
+reduce_11 warp divergence correct=True
+reduce_101 grid_stride   out=25600000.00000000 time=0.08489677 ms
+reduce_101 grid_stride   correct=True
+reduce_102 warp_atomic   out=25600000.00000000 time=0.07795200 ms
+reduce_102 warp_atomic   correct=True
+
+
+input numel=25600000 dtype=torch.float32 device=cuda:0
+reduce_1 naive                 out=25600000.00000000 time=0.51370087 ms
+reduce_1 naive           correct=True
+reduce_11 warp divergence      out=25600000.00000000 time=0.28242432 ms
+reduce_11 warp divergence correct=True
+reduce_2                       out=25600000.00000000 time=0.22283775 ms
+reduce_2                 correct=True
+reduce_101 grid_stride         out=25600000.00000000 time=0.08489370 ms
+reduce_101 grid_stride   correct=True
+reduce_102 warp_atomic         out=25600000.00000000 time=0.07785165 ms
+reduce_102 warp_atomic   correct=True
