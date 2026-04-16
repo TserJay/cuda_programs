@@ -60,6 +60,7 @@ def main():
         ("reduce_2", lib.block_all_reduce_sum_2),
         ("reduce_3", lib.block_all_reduce_sum_3),
         ("reduce_4", lib.block_all_reduce_sum_4),
+        ("reduce_5", lib.block_all_reduce_sum_5),
         ("reduce_101 grid_stride", lib.block_all_reduce_sum_101),
         ("reduce_102 warp_atomic", lib.block_all_reduce_sum_102),
     ]

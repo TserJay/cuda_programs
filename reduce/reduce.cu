@@ -114,8 +114,8 @@ __global__ void block_all_reduce_sum_3(const float* input, float* output, int n)
         output[blockIdx.x] = sdata[tid]; 
 }
 
-// warp 0
-__device__ void warpreduce(volatile float* cache, int tid){
+// unroll warp 0
+__device__ void warpreduce_4(volatile float* cache, int tid){
     cache[tid] += cache[tid + 32];
     cache[tid] += cache[tid + 16];
     cache[tid] += cache[tid + 8];
@@ -137,14 +137,60 @@ __global__ void block_all_reduce_sum_4(const float* input, float* output, int n)
         __syncthreads();
     }
 
-    // warp 0 
+    // unroll warp 0 
     if(tid < 32)
-        warpreduce(sdata, tid);
+        warpreduce_4(sdata, tid);
     //store result to global mem
     if(tid == 0)
         output[blockIdx.x] = sdata[tid];
-
 }
+
+
+// unroll all warp
+template <unsigned int blocksize>
+__device__ void warpreduce_5(volatile float* cache, int tid){
+    if(blocksize >= 64) cache[tid] += cache[tid + 32];
+    if(blocksize >= 32) cache[tid] += cache[tid + 16];
+    if(blocksize >= 16) cache[tid] += cache[tid + 8];
+    if(blocksize >= 8) cache[tid] += cache[tid + 4];
+    if(blocksize >= 4) cache[tid] += cache[tid + 2];
+    if(blocksize >= 2) cache[tid] += cache[tid + 1];
+}
+template <unsigned int blocksize>
+__global__ void block_all_reduce_sum_5(const float* input, float* output){
+    __shared__ float sdata[BLOCK_SIZE];
+    int tid = threadIdx.x;
+    int gtid = blockIdx.x * (blockDim.x * 2) + tid;
+
+    sdata[tid] = input[gtid] + input[gtid + blockDim.x];
+    __syncthreads();
+
+    // do reudce in block 
+    if(blocksize >= 512){
+        if(tid < 256)
+            sdata[tid] += sdata[tid + 256];
+    }
+    __syncthreads();
+    if(blocksize >= 256){
+        if(tid < 128)
+            sdata[tid] += sdata[tid + 128];
+    }
+    __syncthreads();
+    if(blocksize >= 128){
+        if(tid < 64)
+            sdata[tid] += sdata[tid + 64];
+    }
+    __syncthreads();
+    
+    // write result to global mem
+    if(tid < 32)
+        warpreduce_5<blocksize>(sdata, tid);
+    if(tid == 0)
+        output[blockIdx.x] = sdata[tid];
+}
+
+
+
 
 
 __global__ void block_all_reduce_sum_101(const float* input, float* output, int n) {
@@ -380,6 +426,35 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         float* output_ptr = output.data_ptr<float>();
 
         block_all_reduce_sum_4<<<gridSize, BLOCK_SIZE>>>(input_ptr, output_ptr, n);
+
+        // 再把每个 block 的 partial sum 求一次和，得到最终结果。
+        return output.sum();
+    }, "block_all_reduce_sum_4");
+
+
+    // unroll all warp 
+    m.def("block_all_reduce_sum_5", [](torch::Tensor input) {
+        TORCH_CHECK(input.is_cuda(), "input must be a CUDA tensor");
+        TORCH_CHECK(input.scalar_type() == torch::kFloat32, "input must be float32");
+        TORCH_CHECK(input.dim() == 1, "this demo only supports 1D tensors");
+
+        auto x = input.contiguous();
+        int n = x.size(0);
+
+        if (n == 0) {
+            auto output = torch::zeros(1, x.options());
+            return output[0];
+        }
+
+        // 这是最直观的写法：每 512 个元素开一个 block。
+        int gridSize = (n + BLOCK_SIZE * 2 - 1) / (BLOCK_SIZE * 2);
+
+        auto output = torch::zeros(gridSize, x.options());
+
+        const float* input_ptr = x.data_ptr<float>();
+        float* output_ptr = output.data_ptr<float>();
+
+        block_all_reduce_sum_5<BLOCK_SIZE><<<gridSize, BLOCK_SIZE>>>(input_ptr, output_ptr);
 
         // 再把每个 block 的 partial sum 求一次和，得到最终结果。
         return output.sum();

@@ -89,12 +89,7 @@ reduce_102 warp_atomic         out=25600000.00000000 time=0.07785165 ms
 reduce_102 warp_atomic         correct=True
 
 
-
-
-
-
-# A100 非0负载
-
+4. 2026040416(非0负载)
 input numel=25600000 dtype=torch.float32 device=cuda:1
 reduce_1 naive                 out=25600000.00000000 time=0.56863641 ms
 reduce_1 naive                 correct=True
@@ -110,3 +105,27 @@ reduce_101 grid_stride         out=25600000.00000000 time=0.08471449 ms
 reduce_101 grid_stride         correct=True
 reduce_102 warp_atomic         out=25600000.00000000 time=0.07783731 ms
 reduce_102 warp_atomic         correct=True
+
+
+
+5. 2026040416 
+input numel=25600000 dtype=torch.float32 device=cuda:1
+reduce_1 naive                 out=25600000.00000000 time=0.51318579 ms
+reduce_1 naive                 correct=True
+reduce_11 warp divergence      out=25600000.00000000 time=0.28231989 ms
+reduce_11 warp divergence      correct=True
+reduce_2                       out=25600000.00000000 time=0.22280397 ms
+reduce_2                       correct=True
+reduce_3                       out=25600000.00000000 time=0.12324147 ms
+reduce_3                       correct=True
+reduce_4                       out=25600000.00000000 time=0.09817088 ms
+reduce_4                       correct=True
+reduce_5                       out=25600000.00000000 time=0.09800294 ms
+reduce_5                       correct=True
+reduce_101 grid_stride         out=25600000.00000000 time=0.08474419 ms
+reduce_101 grid_stride         correct=True
+reduce_102 warp_atomic         out=25600000.00000000 time=0.07789465 ms
+reduce_102 warp_atomic         correct=True
+
+
+
