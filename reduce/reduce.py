@@ -65,7 +65,7 @@ def main():
     print(f"input numel={values.numel()} dtype={values.dtype} device={values.device}")
     for tag, kernel in kernels:
         cuda_output, _ = run_benchmark(kernel, values, tag)
-        print(f"{tag:<24} correct={verify_result(cuda_output, values)}")
+        print(f"{tag:<30} correct={verify_result(cuda_output, values)}")
 
 
 if __name__ == "__main__":

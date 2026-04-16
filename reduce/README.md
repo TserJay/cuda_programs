@@ -2,7 +2,7 @@
 
 # 5060ti
 
-
+1. 
 input numel=25600000 dtype=torch.float32 device=cuda:0
 reduce_1 naive           out=25600000.00000000 time=0.51442725 ms
 reduce_1 naive           correct=True
@@ -12,6 +12,7 @@ reduce_3 warp_atomic     out=25600000.00000000 time=0.25029327 ms
 reduce_3 warp_atomic     correct=True
 
 
+2. 
 input numel=25600000 dtype=torch.float32 device=cuda:0
 reduce_1 naive           out=25600000.00000000 time=0.51462769 ms
 reduce_1 naive           correct=True
@@ -19,6 +20,27 @@ reduce_2 grid_stride     out=25600000.00000000 time=0.54604657 ms
 reduce_2 grid_stride     correct=True
 reduce_3 warp_atomic     out=25600000.00000000 time=0.24613197 ms
 reduce_3 warp_atomic     correct=True
+
+
+3. 2026040414 
+reduce_11 warp divergence 出现了性能的下降
+
+input numel=25600000 dtype=torch.float32 device=cuda:0
+reduce_1 naive                 out=25600000.00000000 time=0.50846561 ms
+reduce_1 naive                 correct=True
+reduce_11 warp divergence      out=25600000.00000000 time=0.54178143 ms
+reduce_11 warp divergence      correct=True
+reduce_2                       out=25600000.00000000 time=0.50431226 ms
+reduce_2                       correct=True
+reduce_101 grid_stride         out=25600000.00000000 time=0.25119711 ms
+reduce_101 grid_stride         correct=True
+reduce_102 warp_atomic         out=25600000.00000000 time=0.25368352 ms
+reduce_102 warp_atomic         correct=True
+
+
+
+
+
 
 
 
@@ -31,7 +53,7 @@ reduce_3 warp_atomic     correct=True
 # A100
 
 显卡 0 负载
-
+1. 2026040414 
 input numel=25600000 dtype=torch.float32 device=cuda:0
 reduce_1 naive           out=100000.00000000 time=0.18287514 ms  ---位运算：if (tid & (2 * index - 1) == 0)
 reduce_1 naive           correct=False
@@ -42,7 +64,7 @@ reduce_2 grid_stride     correct=True
 reduce_3 warp_atomic     out=25600000.00000000 time=0.07777997 ms
 reduce_3 warp_atomic     correct=True
 
-
+2. 2026040414 
 input numel=25600000 dtype=torch.float32 device=cuda:0
 reduce_1 naive           out=25600000.00000000 time=0.51381763 ms ---模（除）：if (tid % (2 * index) == 0) 
 reduce_1 naive           correct=True
@@ -53,15 +75,15 @@ reduce_101 grid_stride   correct=True
 reduce_102 warp_atomic   out=25600000.00000000 time=0.07795200 ms
 reduce_102 warp_atomic   correct=True
 
-
+3. 2026040414 
 input numel=25600000 dtype=torch.float32 device=cuda:0
 reduce_1 naive                 out=25600000.00000000 time=0.51370087 ms
-reduce_1 naive           correct=True
+reduce_1 naive                 correct=True
 reduce_11 warp divergence      out=25600000.00000000 time=0.28242432 ms
-reduce_11 warp divergence correct=True
+reduce_11 warp divergence      correct=True
 reduce_2                       out=25600000.00000000 time=0.22283775 ms
-reduce_2                 correct=True
+reduce_2                       correct=True
 reduce_101 grid_stride         out=25600000.00000000 time=0.08489370 ms
-reduce_101 grid_stride   correct=True
+reduce_101 grid_stride         correct=True
 reduce_102 warp_atomic         out=25600000.00000000 time=0.07785165 ms
-reduce_102 warp_atomic   correct=True
+reduce_102 warp_atomic         correct=True
