@@ -114,6 +114,7 @@ __global__ void block_all_reduce_sum_3(const float* input, float* output, int n)
         output[blockIdx.x] = sdata[tid]; 
 }
 
+
 // unroll warp 0
 __device__ void warpreduce_4(volatile float* cache, int tid){
     cache[tid] += cache[tid + 32];
@@ -190,9 +191,59 @@ __global__ void block_all_reduce_sum_5(const float* input, float* output){
 }
 
 
+// grid-stride loop
+template<unsigned int blocksize>
+__device__ void warpreduce_6(volatile float* cache, int tid){
+    if(blocksize >= 64) cache[tid] += cache[tid + 32];
+    if(blocksize >= 32) cache[tid] += cache[tid + 16];
+    if(blocksize >= 16) cache[tid] += cache[tid + 8];
+    if(blocksize >= 8) cache[tid] += cache[tid + 4];
+    if(blocksize >= 4) cache[tid] += cache[tid + 2];
+    if(blocksize >= 2) cache[tid] += cache[tid + 1];
+}
+template<unsigned int blocksize>
+__global__ void block_all_reduce_sum_6(const float* input, float* output, int n){
+    __shared__ float sdata[BLOCK_SIZE];
+    
+    unsigned int tid = threadIdx.x;
+    unsigned int gtid = blockIdx.x * (blockDim.x * 2) + tid;
+
+    unsigned int stride = blocksize * 2 * gridDim.x;
+    sdata[tid] = 0;
+
+    while(gtid < n){
+        sdata[tid] += input[gtid] + input[gtid + blocksize];
+        gtid += stride;
+    }
+    __syncthreads();
+
+    // do reudce in block 
+    if(blocksize >= 512){
+        if(tid < 256)
+            sdata[tid] += sdata[tid + 256];
+    }
+    __syncthreads();
+    if(blocksize >= 256){
+        if(tid < 128)
+            sdata[tid] += sdata[tid + 128];
+    }
+    __syncthreads();
+    if(blocksize >= 128){
+        if(tid < 64)
+            sdata[tid] += sdata[tid + 64];
+    }
+    __syncthreads();
+    
+    // write result to global mem
+    if(tid < 32)
+        warpreduce_6<blocksize>(sdata, tid);
+    if(tid == 0)
+        output[blockIdx.x] = sdata[tid];
+}
 
 
 
+// grid-stride loop
 __global__ void block_all_reduce_sum_101(const float* input, float* output, int n) {
     __shared__ float tile[BLOCK_SIZE];
 
@@ -200,7 +251,7 @@ __global__ void block_all_reduce_sum_101(const float* input, float* output, int 
     int start = blockIdx.x * blockDim.x + tid;
     int stride = blockDim.x * gridDim.x;
 
-    // _2 比 _1 多做的一步，是让每个线程先在寄存器里累加多个元素。
+    // 每个线程先在寄存器里累加多个元素。
     // 这样线程不是只干一次活，而是沿着 stride 一直往后处理。
     float sum = 0.0f;
     for (int i = start; i < n; i += stride) {
@@ -210,7 +261,7 @@ __global__ void block_all_reduce_sum_101(const float* input, float* output, int 
     tile[tid] = sum;
     __syncthreads();
 
-    // 这里把 _1 的“从小跨度往上翻倍”，改成更常见的“每轮减半”。
+    // “从小跨度往上翻倍”，改成更常见的“每轮减半”。
     // 第 1 轮：前 128 个线程各自加后 128 个线程的值
     // 第 2 轮：前 64 个线程各自加后 64 个线程的值
     // ...
@@ -240,7 +291,7 @@ __global__ void block_all_reduce_sum_102(const float* input, float* output, int 
     int lane = tid % WARP_SIZE;
     int warp_id = tid / WARP_SIZE;
 
-    // _3 的目标是：直接得到“全局总和”，不再先写一整个 partial sums 数组。
+    // 目标是：直接得到“全局总和”，不再先写一整个 partial sums 数组。
     // 这里每个 block 初始会看 2 * BLOCK_SIZE 个元素：
     // 当前线程先读一个，再尝试多读一个相邻位置。
     int idx = blockIdx.x * blockDim.x * 2 + tid;
@@ -303,7 +354,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         // 这是最直观的写法：每 256 个元素开一个 block。
         int gridSize = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-        // _2 想发挥 grid-stride loop 的优势，不能把 gridSize 开得过大。
+        // 想发挥 grid-stride loop 的优势，不能把 gridSize 开得过大。
         // 如果 block 太多，stride 会接近整个输入长度，线程往往只能处理 1 个元素，
         // 这样 _2 就退化了，性能通常会明显变差。
         // int gridSize = std::min((n + BLOCK_SIZE - 1) / BLOCK_SIZE, 4096);
@@ -458,7 +509,36 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 
         // 再把每个 block 的 partial sum 求一次和，得到最终结果。
         return output.sum();
-    }, "block_all_reduce_sum_4");
+    }, "block_all_reduce_sum_5");
+
+
+    m.def("block_all_reduce_sum_6", [](torch::Tensor input) {
+        TORCH_CHECK(input.is_cuda(), "input must be a CUDA tensor");
+        TORCH_CHECK(input.scalar_type() == torch::kFloat32, "input must be float32");
+        TORCH_CHECK(input.dim() == 1, "this demo only supports 1D tensors");
+
+        auto x = input.contiguous();
+        int n = x.size(0);
+
+        if (n == 0) {
+            auto output = torch::zeros(1, x.options());
+            return output[0];
+        }
+
+        // 这是最直观的写法：每 512 个元素开一个 block。
+        int gridSize = (n + BLOCK_SIZE * 2 - 1) / (BLOCK_SIZE * 2);
+        // int gridSize = std::min(4096, (n + BLOCK_SIZE * 2 - 1) / (BLOCK_SIZE * 2));
+
+        auto output = torch::zeros(gridSize, x.options());
+
+        const float* input_ptr = x.data_ptr<float>();
+        float* output_ptr = output.data_ptr<float>();
+
+        block_all_reduce_sum_6<BLOCK_SIZE><<<gridSize, BLOCK_SIZE>>>(input_ptr, output_ptr, n);
+
+        // 再把每个 block 的 partial sum 求一次和，得到最终结果。
+        return output.sum();
+    }, "block_all_reduce_sum_6");
 
 
     m.def("block_all_reduce_sum_101", [](torch::Tensor input) {

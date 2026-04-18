@@ -58,6 +58,35 @@ reduce_102 warp_atomic         out=25600000.00000000 time=0.24886336 ms
 reduce_102 warp_atomic         correct=True
 
 
+5. 2026040418
+reduce_1 naive                 out=25600000.00000000 time=0.51615137 ms
+reduce_1 naive                 correct=True
+reduce_11 warp divergence      out=25600000.00000000 time=0.55360486 ms
+reduce_11 warp divergence      correct=True
+reduce_2                       out=25600000.00000000 time=0.51080722 ms
+reduce_2                       correct=True
+reduce_3                       out=25600000.00000000 time=0.27780035 ms
+reduce_3                       correct=True
+reduce_4                       out=25600000.00000000 time=0.26184964 ms
+reduce_4                       correct=True
+reduce_5                       out=25600000.00000000 time=0.26214740 ms
+reduce_5                       correct=True
+reduce_6                       out=25600000.00000000 time=0.26094681 ms
+reduce_6                       correct=True
+reduce_6                       out=25600000.00000000 time=0.25616727 ms ------更少的gridsize
+reduce_6                       correct=True
+reduce_101 grid_stride         out=25600000.00000000 time=0.25452499 ms
+reduce_101 grid_stride         correct=True
+reduce_102 warp_atomic         out=25600000.00000000 time=0.25040643 ms
+reduce_102 warp_atomic         correct=True
+
+
+
+
+
+
+
+
 
 
 

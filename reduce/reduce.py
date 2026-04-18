@@ -16,7 +16,7 @@ lib = load(
     extra_cflags=["-std=c++17"],
     verbose=True
 )
-torch.cuda.set_device(1)
+# torch.cuda.set_device(1)
 
 def run_benchmark(
     perf_func: callable,
@@ -61,6 +61,7 @@ def main():
         ("reduce_3", lib.block_all_reduce_sum_3),
         ("reduce_4", lib.block_all_reduce_sum_4),
         ("reduce_5", lib.block_all_reduce_sum_5),
+        ("reduce_6", lib.block_all_reduce_sum_6),
         ("reduce_101 grid_stride", lib.block_all_reduce_sum_101),
         ("reduce_102 warp_atomic", lib.block_all_reduce_sum_102),
     ]
