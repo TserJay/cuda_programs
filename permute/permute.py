@@ -9,7 +9,7 @@ os.environ["TORCH_CUDA_ARCH_LIST"] = "12.0"
 # loda the cuda kernels as a python module
 lib = load(
     name="permute_cuda",
-    sources=["permute_naive.cu"],
+    sources=["permute.cu"],
     extra_cuda_cflags=["-O3"],
     extra_cflags=["-std=c++17"],
 )
