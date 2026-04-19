@@ -92,6 +92,8 @@ reduce_6                       out=25600000.00000000 time=0.26713239 ms
 reduce_6                       out=25600000.00000000 time=0.25625275 ms ---更少的gridsize
 reduce_7                       out=25600000.00000000 time=0.26432721 ms
 reduce_7                       out=25600000.00000000 time=0.25602838 ms ---更少的gridsize
+reduce_601                     out=25600000.00000000 time=0.26579706 ms
+reduce_701                     out=25600000.00000000 time=0.26640573 ms
 reduce_101                     out=25600000.00000000 time=0.25479005 ms
 reduce_102 warp_atomic         out=25600000.00000000 time=0.25259216 ms
 
