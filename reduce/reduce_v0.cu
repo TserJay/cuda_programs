@@ -89,6 +89,8 @@ int main()
     const int blockSize = 256;
     int GridSize = std::min((N + 256 - 1) / 256, deviceProp.maxGridSize[0]);
     //int GridSize = 100000;
+
+    
     float* a = (float*)malloc(N * sizeof(float));
     float* d_a;
     cudaMalloc((void**)&d_a, N * sizeof(float));
