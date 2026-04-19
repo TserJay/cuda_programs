@@ -20,25 +20,21 @@ def run_benchmark(
     values: torch.Tensor,
     tag: str,
     warmup: int = 10,
-    iters: int = 1000,
+    iters: int = 10,
 ):
     for i in range(warmup):
         _ = perf_func(values)
-  
-    torch.cuda.synchronize()
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    # torch.cuda.synchronize()
 
-    start_event.record()
+    start = time.time()
     for i in range(iters):
         out = perf_func(values)
-
-    end_event.record()
-    torch.cuda.synchronize()
-    total_time = start_event.elapsed_time(end_event)
-   
+    end = time.time()
+    total_time = (end - start) * 1000  # 转换为毫秒
     mean_time = total_time / iters
+
     out_info = f"out_{tag}"
+
     if tag.startswith("i8"):
         print(f"time:{mean_time:.8f} ms")
     else:
