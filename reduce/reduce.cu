@@ -243,6 +243,53 @@ __global__ void block_all_reduce_sum_6(const float* input, float* output, int n)
 
 
 
+// use shuffle
+template <unsigned int blocksize>
+__device__ __forceinline__ float warpreduce_7(float sum){
+    if(blocksize >= 32) sum += __shfl_down_sync(0xffffffff, sum, 16);
+    if(blocksize >= 16) sum += __shfl_down_sync(0xffffffff, sum, 8);
+    if(blocksize >= 8) sum += __shfl_down_sync(0xffffffff, sum, 4);
+    if(blocksize >= 4) sum += __shfl_down_sync(0xffffffff, sum, 2);
+    if(blocksize >= 2) sum += __shfl_down_sync(0xffffffff, sum, 1);
+    return sum;
+}
+template <unsigned int blocksize>
+__global__ void block_all_reduce_sum_7(const float* input, float* output, int n){
+
+    int tid = threadIdx.x;
+    int gtid = blockIdx.x * 2 * blockDim.x + tid;
+
+    unsigned int stride = blocksize * 2 * gridDim.x;
+    float sum = 0.0f;
+
+    for(int i = gtid; i < n; i += stride){
+        sum += input[i] + input[i + blocksize];
+    }
+  
+    // shared mem for partial sums(one per warp in the block)
+    static __shared__ float warpLevelSums[WARP_SIZE];
+    const int laneID = threadIdx.x % WARP_SIZE;
+    const int warpID = threadIdx.x / WARP_SIZE;
+
+    sum = warpreduce_7<blocksize>(sum);
+
+    if(laneID == 0){
+        warpLevelSums[warpID] = sum;
+        __syncthreads();
+    }
+    sum = (threadIdx.x < blockDim.x / WARP_SIZE)? warpLevelSums[laneID] : 0.0f;
+
+    // final reduce using first warp
+    if (warpID ==0){
+        sum = warpreduce_7<blocksize/WARP_SIZE>(sum);
+    }
+
+    // store result to global mem
+    if(tid == 0) output[blockIdx.x] = sum;
+}
+
+
+
 // grid-stride loop
 __global__ void block_all_reduce_sum_101(const float* input, float* output, int n) {
     __shared__ float tile[BLOCK_SIZE];
@@ -539,6 +586,36 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         // 再把每个 block 的 partial sum 求一次和，得到最终结果。
         return output.sum();
     }, "block_all_reduce_sum_6");
+
+
+    m.def("block_all_reduce_sum_7", [](torch::Tensor input) {
+        TORCH_CHECK(input.is_cuda(), "input must be a CUDA tensor");
+        TORCH_CHECK(input.scalar_type() == torch::kFloat32, "input must be float32");
+        TORCH_CHECK(input.dim() == 1, "this demo only supports 1D tensors");
+
+        auto x = input.contiguous();
+        int n = x.size(0);
+
+        if (n == 0) {
+            auto output = torch::zeros(1, x.options());
+            return output[0];
+        }
+
+        // 这是最直观的写法：每 512 个元素开一个 block。
+        int gridSize = (n + BLOCK_SIZE * 2 - 1) / (BLOCK_SIZE * 2);
+        // int gridSize = std::min(4096, (n + BLOCK_SIZE * 2 - 1) / (BLOCK_SIZE * 2));
+
+        auto output = torch::zeros(gridSize, x.options());
+
+        const float* input_ptr = x.data_ptr<float>();
+        float* output_ptr = output.data_ptr<float>();
+
+        block_all_reduce_sum_7<BLOCK_SIZE><<<gridSize, BLOCK_SIZE>>>(input_ptr, output_ptr, n);
+
+        // 再把每个 block 的 partial sum 求一次和，得到最终结果。
+        return output.sum();
+    }, "block_all_reduce_sum_7");
+
 
 
     m.def("block_all_reduce_sum_101", [](torch::Tensor input) {

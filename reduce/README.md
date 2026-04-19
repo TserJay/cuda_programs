@@ -73,7 +73,7 @@ reduce_5                       out=25600000.00000000 time=0.26214740 ms
 reduce_5                       correct=True
 reduce_6                       out=25600000.00000000 time=0.26094681 ms
 reduce_6                       correct=True
-reduce_6                       out=25600000.00000000 time=0.25616727 ms ------更少的gridsize
+reduce_6                       out=25600000.00000000 time=0.25616727 ms ---更少的gridsize
 reduce_6                       correct=True
 reduce_101 grid_stride         out=25600000.00000000 time=0.25452499 ms
 reduce_101 grid_stride         correct=True
@@ -81,6 +81,19 @@ reduce_102 warp_atomic         out=25600000.00000000 time=0.25040643 ms
 reduce_102 warp_atomic         correct=True
 
 
+6. 2026040418
+reduce_1 naive                 out=25600000.00000000 time=0.51700488 ms
+reduce_11 warp divergence      out=25600000.00000000 time=0.54903241 ms
+reduce_2                       out=25600000.00000000 time=0.51681451 ms
+reduce_3                       out=25600000.00000000 time=0.27497711 ms
+reduce_4                       out=25600000.00000000 time=0.26192856 ms
+reduce_5                       out=25600000.00000000 time=0.26293094 ms
+reduce_6                       out=25600000.00000000 time=0.26713239 ms
+reduce_6                       out=25600000.00000000 time=0.25625275 ms ---更少的gridsize
+reduce_7                       out=25600000.00000000 time=0.26432721 ms
+reduce_7                       out=25600000.00000000 time=0.25602838 ms ---更少的gridsize
+reduce_101                     out=25600000.00000000 time=0.25479005 ms
+reduce_102 warp_atomic         out=25600000.00000000 time=0.25259216 ms
 
 
 
