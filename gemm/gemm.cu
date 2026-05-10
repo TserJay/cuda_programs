@@ -1,4 +1,4 @@
-#include <torch/extenson.h>
+#include <torch/extension.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,20 +11,20 @@
 
 
 template <
-    const int BLOCK_SIZE_M; // width of block of C that each thread block calculate
-    const int BLOCK_SIZE_K; // height of block of A that each thread block load into shared memory
-    const int BLOCK_SIZE_N; // height of block of C that each thread block calculate
-    const int THREAD_SIZE_X; // height of block of C that each thread calculate 
-    const int THREAD_SIZE_Y; // width of block of C that each thread calculate
+    const int BLOCK_SIZE_M, // width of block of C that each thread block calculate
+    const int BLOCK_SIZE_K, // height of block of A that each thread block load into shared memory
+    const int BLOCK_SIZE_N, // height of block of C that each thread block calculate
+    const int THREAD_SIZE_X, // height of block of C that each thread calculate 
+    const int THREAD_SIZE_Y // width of block of C that each thread calculate
     >
 
 __global__ void gemm(
     float* __restrict__ A,
     float* __restrict__ B,
     float* __restrict__ C,
-    float* int M,
-    float* int N,
-    float* int K,
+    const int M,
+    const int N,
+    const int K,
     float alpha,
     float beta
 ){
@@ -52,7 +52,7 @@ __global__ void gemm(
     const int B_TILE_COL = tid % BLOCK_SIZE_N;
 
     // row stride that thread uses to load multiple rows of a tile
-    const int A_TILE_ROW_STRIDE = THREAD_NUM_PER_BLOCK / BLOCK_SIZE_K
+    const int A_TILE_ROW_STRIDE = THREAD_NUM_PER_BLOCK / BLOCK_SIZE_K;
     const int B_TILE_ROW_STRIDE = THREAD_NUM_PER_BLOCK / BLOCK_SIZE_N;
 
     const int A_S = BLOCK_SIZE_M / THREAD_SIZE_Y;
@@ -60,7 +60,7 @@ __global__ void gemm(
 
     // can not unroll since K can not be determined at this point
     // 主循环沿着 K 维度
-    for(int tile_idx = 0 ; tile_idx < k ; tile_idx += BLOCK_SIZE_K){
+    for(int tile_idx = 0 ; tile_idx < K ; tile_idx += BLOCK_SIZE_K){
         #pragma unroll
         for ( int i = 0 ; i < BLOCK_SIZE_M ; i += A_TILE_ROW_STRIDE){
             const int row = BLOCK_SIZE_M * blockIdx.y + i + A_TILE_ROW;
@@ -75,11 +75,11 @@ __global__ void gemm(
 
         // load B from global memory to shared memory
         #pragma unroll
-        for( int i = 0 ; i < BLOCK_SIZE_K; I += B_TILE_ROW_STRIDE){
+        for( int i = 0 ; i < BLOCK_SIZE_K; i += B_TILE_ROW_STRIDE){
             const int row = tile_idx + i + B_TILE_ROW;
             const int col = B_TILE_COL + BLOCK_SIZE_N * blockIdx.x;
             if (blockIdx.x == gridDim.x -1 || blockIdx.y == gridDim.y - 1){
-                Bs[i + B_TILE_ROW][B_TILE_COL] = row < M && col < K ? B[OFFSET(row,col,N)] : 0;
+                Bs[i + B_TILE_ROW][B_TILE_COL] = row < K && col < N ? B[OFFSET(row,col,N)] : 0;
             }
             else{
                 Bs[i + B_TILE_ROW][B_TILE_COL] = B[OFFSET(row,col,N)];
@@ -89,12 +89,12 @@ __global__ void gemm(
 
         // compoute c
         #pragma unroll
-        for ( int k = 0; k < BLOCK_SIZE_K; ++K){
+        for ( int k = 0; k < BLOCK_SIZE_K; ++k){
             #pragma unroll
-            for(int thread_y = 0; thread_y < THREAD_SIZE_X; ++thead_y){
+            for(int thread_y = 0; thread_y < THREAD_SIZE_Y; ++thread_y){
                 #pragma unroll
                 for (int thread_x = 0; thread_x < THREAD_SIZE_X; ++thread_x){
-                    accum[thread_y][thread_x] += As[thread_y * A_S + threadIdx.y][k] * Bs[k][thread_x * B_S + threadIdx.x]
+                    accum[thread_y][thread_x] += As[thread_y * A_S + threadIdx.y][k] * Bs[k][thread_x * B_S + threadIdx.x];
                 }
             }
         }

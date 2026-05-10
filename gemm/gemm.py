@@ -41,6 +41,7 @@ def varify_result(cuda_output: torch.Tensor, values: torch.Tensor) -> bool:
     """
         验证
     """
+    pass
 
 def main():
     values = torch
@@ -57,4 +58,10 @@ def main():
 
     MNKs = [(M, N, K) for M in Ms for N in Ns for K in Ks]
     for M, N, K in MNKs:
+
+
+        
+
+if __name__ == "__main__":
+    main()
         
