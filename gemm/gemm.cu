@@ -29,7 +29,7 @@ __global__ void gemm(
     float beta
 ){
     // size of thread block
-    const int bszx = BLOCK_SIZE_N / THREAD_SIZE_X;
+    const int bszx = BLOCK_SIZE_N / THREAD_SIZE_X; 
     const int bszy = BLOCK_SIZE_M / THREAD_SIZE_Y;
     const int THREAD_NUM_PER_BLOCK = bszx * bszy;
 
@@ -54,7 +54,7 @@ __global__ void gemm(
     // row stride that thread uses to load multiple rows of a tile
     const int A_TILE_ROW_STRIDE = THREAD_NUM_PER_BLOCK / BLOCK_SIZE_K;
     const int B_TILE_ROW_STRIDE = THREAD_NUM_PER_BLOCK / BLOCK_SIZE_N;
-
+    
     const int A_S = BLOCK_SIZE_M / THREAD_SIZE_Y;
     const int B_S = BLOCK_SIZE_N / THREAD_SIZE_X;
 
@@ -122,8 +122,42 @@ __global__ void gemm(
 }
 
 
+void launch_gemm(
+    torch::Tensor A, torch::Tensor B, torch::Tensor C,
+    int M, int N, int K, float alpha, float beta
+) {
+    const int BLOCK_SIZE_M = 128;
+    const int BLOCK_SIZE_K = 8;
+    const int BLOCK_SIZE_N = 128;
+    const int THREAD_SIZE_X = 8;
+    const int THREAD_SIZE_Y = 8;
+
+    dim3 dimBlock(BLOCK_SIZE_N / THREAD_SIZE_X, BLOCK_SIZE_M / THREAD_SIZE_Y);
+    dim3 dimGrid((N + BLOCK_SIZE_N - 1) / BLOCK_SIZE_N, (M + BLOCK_SIZE_M - 1) / BLOCK_SIZE_M);
+
+    gemm<BLOCK_SIZE_M, BLOCK_SIZE_K, BLOCK_SIZE_N, THREAD_SIZE_X, THREAD_SIZE_Y>
+        <<<dimGrid, dimBlock>>>(
+            A.data_ptr<float>(),
+            B.data_ptr<float>(),
+            C.data_ptr<float>(),
+            M, N, K, alpha, beta
+        );
+}
 
 
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+    m.def("gemm", [](torch::Tensor A, torch::Tensor B, torch::Tensor C,
+                      int M, int N, int K, float alpha, float beta) {
+        TORCH_CHECK(A.is_cuda(), "A must be a CUDA tensor");
+        TORCH_CHECK(B.is_cuda(), "B must be a CUDA tensor");
+        TORCH_CHECK(C.is_cuda(), "C must be a CUDA tensor");
+        TORCH_CHECK(A.scalar_type() == torch::kFloat32, "A must be float32");
+        TORCH_CHECK(B.scalar_type() == torch::kFloat32, "B must be float32");
+        TORCH_CHECK(C.scalar_type() == torch::kFloat32, "C must be float32");
+
+        launch_gemm(A.contiguous(), B.contiguous(), C.contiguous(), M, N, K, alpha, beta);
+    }, "tiled GEMM: C = alpha * A @ B + beta * C");
+}
 
 
 
